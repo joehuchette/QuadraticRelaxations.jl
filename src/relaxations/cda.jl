@@ -1,10 +1,10 @@
-struct HongboRelaxation <: AbstractRelaxation
+struct CDARelaxation <: AbstractRelaxation
     num_layers::Int
 end
 
 function reformulate_unary_quadratic_term!(
     model::MOI.ModelLike,
-    reformulation::Reformulation{HongboRelaxation},
+    reformulation::Reformulation{CDARelaxation},
     _x::VI,
     _y::VI,
     l::Float64,
