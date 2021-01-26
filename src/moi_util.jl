@@ -20,6 +20,8 @@ function _map_to_interval_if_needed(model, x::VI, y::VI, l::Float64, u::Float64)
     end
 end
 
+vectorize_quadratics!(model::MOIU.CachingOptimizer) = model.model_cache.model
+
 function vectorize_quadratics!(cached_model::MOIU.Model{Float64})
     scalar_quad_cons = cached_model.moi_scalarquadraticfunction
     @assert isempty(scalar_quad_cons.moi_equalto)
@@ -42,13 +44,7 @@ function vectorize_quadratics!(cached_model::MOIU.Model{Float64})
         for aff in q_f.affine_terms
             push!(
                 affine_terms,
-                VAT(
-                    func_count,
-                    SAT(
-                        -aff.coefficient,
-                        aff.variable_index,
-                    ),
-                ),
+                VAT(func_count, SAT(-aff.coefficient, aff.variable_index)),
             )
         end
         for quad in q_f.quadratic_terms
@@ -74,13 +70,7 @@ function vectorize_quadratics!(cached_model::MOIU.Model{Float64})
         for aff in q_f.affine_terms
             push!(
                 affine_terms,
-                VAT(
-                    func_count,
-                    SAT(
-                        aff.coefficient,
-                        aff.variable_index,
-                    ),
-                ),
+                VAT(func_count, SAT(aff.coefficient, aff.variable_index)),
             )
         end
         for quad in q_f.quadratic_terms
@@ -102,8 +92,7 @@ function vectorize_quadratics!(cached_model::MOIU.Model{Float64})
 
     vector_quad_cons = cached_model.moi_vectorquadraticfunction.moi_nonpositives
     @assert isempty(vector_quad_cons)
-    constraint_index =
-        MOI.ConstraintIndex{VQF,MOI.Nonpositives}(1)
+    constraint_index = MOI.ConstraintIndex{VQF,MOI.Nonpositives}(1)
     vector_func = VQF(affine_terms, quad_terms, constants)
     vector_set = MOI.Nonpositives(num_gt + num_lt)
     retval = (constraint_index, vector_func, vector_set)
@@ -159,10 +148,7 @@ function _indices_and_coefficients(
     return
 end
 
-function _indices_and_coefficients(
-    f::SQF,
-    canonical_index::Dict{VI,Int},
-)
+function _indices_and_coefficients(f::SQF, canonical_index::Dict{VI,Int})
     f_canon = MOI.Utilities.canonical(f)
     nnz_quadratic = length(f_canon.quadratic_terms)
     nnz_affine = length(f_canon.affine_terms)
@@ -183,11 +169,7 @@ function _indices_and_coefficients(
     return indices, coefficients, I, J, V
 end
 
-function _get_Q_matrix(
-    q_func::SQF,
-    canonical_index::Dict{VI,Int},
-    n::Int,
-)
+function _get_Q_matrix(q_func::SQF, canonical_index::Dict{VI,Int}, n::Int)
     indices, coefficients, I, J, V =
         _indices_and_coefficients(q_func, canonical_index)
     Q = Matrix{Float64}(SparseArrays.sparse(I, J, V, n, n))

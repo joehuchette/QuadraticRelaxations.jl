@@ -8,25 +8,30 @@ function reformulate_quadratics!(
     model::JuMP.Model,
     reformulation::Reformulation,
 )
-    moi_backend = JuMP.backend(model)
     @assert typeof(moi_backend) <: MOIU.CachingOptimizer
     @assert moi_backend.state in (MOIU.NO_OPTIMIZER, MOIU.EMPTY_OPTIMIZER)
-    vq_ci, vq_f, vq_s = vectorize_quadratics!(moi_backend.model_cache.model)
+    moi_model = reformulate_quadratics(model, reformulation)
+    MOI.copy_to(MOI.backend(model), moi_model)
+    MOIU.attach_optimizer(model)
+    return nothing
+end
+
+function reformulate_quadratics(model::JuMP.Model, reformulation::Reformulation)
+    moi_model =
+        MOIU.CachingOptimizer(MOIU.UniversalFallback(MOIU.Model{Float64}()))
+    MOI.copy_to(moi_model, JuMP.backend(model))
+    vq_ci, vq_f, vq_s = vectorize_quadratics!(moi_model)
     obj = try
-        MOI.get(model, MOI.ObjectiveFunction{SAF}())
+        MOI.get(moi_model, MOI.ObjectiveFunction{SAF}())
         nothing
     catch InexactError
-        MOI.get(
-            model,
-            MOI.ObjectiveFunction{SQF}(),
-        )
+        MOI.get(moi_model, MOI.ObjectiveFunction{SQF}())
     end
     # NOTE: Previously, this code only MOI.delete'd if obj === nothing. That
     # doesn't seem right.
-    MOI.delete(moi_backend, vq_ci)
-    _relax_quadratic!(moi_backend, reformulation, vq_f, vq_s, obj)
-    MOIU.attach_optimizer(model)
-    return nothing
+    MOI.delete(moi_model, vq_ci)
+    _relax_quadratic!(moi_model, reformulation, vq_f, vq_s, obj)
+    return moi_model
 end
 
 # Assumption: Constraints we wish to reformulate have been bridged to the form
@@ -80,18 +85,18 @@ function _relax_quadratic!(
     for q_func in q_funcs
         Q = _get_Q_matrix(q_func, canonical_index, n)
         δ_value = compute_diagonal_shift(Q, reformulation.shift)
-        quad_shift = SQF(SAF[],
+        quad_shift = SQF(
+            SAF[],
             [
-                SQT(2 * δ_value[canonical_index[xi]], xi, xi) for xi in keys(canonical_index)
+                SQT(2 * δ_value[canonical_index[xi]], xi, xi) for
+                xi in keys(canonical_index)
             ],
             0.0,
         )
         aff_shift = SAF(
             [
-                SAT(
-                    -δ_value[canonical_index[xi]],
-                    squared_vars[xi],
-                ) for xi in keys(canonical_index)
+                SAT(-δ_value[canonical_index[xi]], squared_vars[xi]) for
+                xi in keys(canonical_index)
             ],
             0.0,
         )
@@ -109,25 +114,20 @@ function _relax_quadratic!(
         quad_shift = SQF(
             SAT[],
             [
-                SQT(2 * δ_value[canonical_index[xi]], xi, xi) for xi in keys(canonical_index)
+                SQT(2 * δ_value[canonical_index[xi]], xi, xi) for
+                xi in keys(canonical_index)
             ],
             0.0,
         )
         aff_shift = SAF(
             [
-                SAT(
-                    -δ_value[canonical_index[xi]],
-                    squared_vars[xi],
-                ) for xi in keys(canonical_index)
+                SAT(-δ_value[canonical_index[xi]], squared_vars[xi]) for
+                xi in keys(canonical_index)
             ],
             0.0,
         )
         shifted_q_func = MOIU.canonical(obj + quad_shift + aff_shift)
-        MOI.set(
-            model,
-            MOI.ObjectiveFunction{SQF}(),
-            shifted_q_func,
-        )
+        MOI.set(model, MOI.ObjectiveFunction{SQF}(), shifted_q_func)
     end
 
     return nothing

@@ -1,6 +1,9 @@
 module QuadraticRelaxations
 
 import JuMP, MathOptInterface
+import LinearAlgebra, SparseArrays
+import PiecewiseLinearOpt
+
 const MOI = MathOptInterface
 const MOIU = MOI.Utilities
 const VI = MOI.VariableIndex
@@ -12,10 +15,6 @@ const SQF = MOI.ScalarQuadraticFunction{Float64}
 const VQT = MOI.VectorQuadraticTerm{Float64}
 const VQF = MOI.VectorQuadraticFunction{Float64}
 
-import LinearAlgebra, SparseArrays
-import Mosek, MosekTools
-import PiecewiseLinearOpt
-
 abstract type AbstractRelaxation end
 
 abstract type AbstractShiftMethod end
@@ -23,8 +22,8 @@ abstract type AbstractShiftMethod end
 include("moi_util.jl")
 include("reformulation.jl")
 include("shift.jl")
-# include("diagonalize.jl")
 
+include("relaxations/exact.jl")
 include("relaxations/secant.jl")
 include("relaxations/hongbo.jl")
 include("relaxations/neural_net.jl")
