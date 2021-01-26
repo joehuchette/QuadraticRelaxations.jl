@@ -1,2 +1,2 @@
-# QuadraticRelaxations.jl
+# QuadraticRelaxations
 Relax your favorite nonconvex quadratic optimization problems
