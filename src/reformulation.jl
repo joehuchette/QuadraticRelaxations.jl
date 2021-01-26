@@ -4,34 +4,16 @@ struct Reformulation{T<:AbstractRelaxation,S<:AbstractShiftMethod}
     soc_lower_bound::Bool
 end
 
-function reformulate_quadratics!(
-    model::JuMP.Model,
+function reformulate_quadratics(
+    src::MOI.ModelLike,
     reformulation::Reformulation,
 )
-    @assert typeof(moi_backend) <: MOIU.CachingOptimizer
-    @assert moi_backend.state in (MOIU.NO_OPTIMIZER, MOIU.EMPTY_OPTIMIZER)
-    moi_model = reformulate_quadratics(model, reformulation)
-    MOI.copy_to(MOI.backend(model), moi_model)
-    MOIU.attach_optimizer(model)
-    return nothing
-end
-
-function reformulate_quadratics(model::JuMP.Model, reformulation::Reformulation)
-    moi_model =
-        MOIU.CachingOptimizer(MOIU.UniversalFallback(MOIU.Model{Float64}()))
-    MOI.copy_to(moi_model, JuMP.backend(model))
-    vq_ci, vq_f, vq_s = vectorize_quadratics!(moi_model)
-    obj = try
-        MOI.get(moi_model, MOI.ObjectiveFunction{SAF}())
-        nothing
-    catch InexactError
-        MOI.get(moi_model, MOI.ObjectiveFunction{SQF}())
-    end
-    # NOTE: Previously, this code only MOI.delete'd if obj === nothing. That
-    # doesn't seem right.
-    MOI.delete(moi_model, vq_ci)
-    _relax_quadratic!(moi_model, reformulation, vq_f, vq_s, obj)
-    return moi_model
+    dest = MOIU.Model{Float64}()
+    MOI.copy_to(dest, src)
+    vq_f = _collect_and_canonicalize_quadratic_constraints!(dest)
+    obj_f = MOI.get(dest, MOI.ObjectiveFunction{SQF}())
+    _relax_quadratic!(dest, reformulation, vq_f, obj_f)
+    return dest
 end
 
 # Assumption: Constraints we wish to reformulate have been bridged to the form
@@ -40,8 +22,7 @@ function _relax_quadratic!(
     model,
     reformulation::Reformulation,
     f::VQF,
-    s::MOI.Nonpositives,
-    obj::Union{Nothing,SQF} = nothing,
+    obj::SQF,
 )
     squared_vars = Dict{VI,VI}()
     # Walk all constraints in vector and populate squared_vars dict
@@ -108,7 +89,13 @@ function _relax_quadratic!(
         )
     end
     # Now handle objective
-    if obj !== nothing
+    if isempty(obj.quadratic_terms)
+        MOI.set(
+            model,
+            MOI.ObjectiveFunction{SAF}(),
+            SAF(obj.affine_terms, obj.constant),
+        )
+    else
         Q = _get_Q_matrix(obj, canonical_index, n)
         δ_value = compute_diagonal_shift(Q, reformulation.shift)
         quad_shift = SQF(

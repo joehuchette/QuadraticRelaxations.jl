@@ -12,6 +12,8 @@ const SAT = MOI.ScalarAffineTerm{Float64}
 const SAF = MOI.ScalarAffineFunction{Float64}
 const SQT = MOI.ScalarQuadraticTerm{Float64}
 const SQF = MOI.ScalarQuadraticFunction{Float64}
+const VAT = MOI.VectorAffineTerm{Float64}
+const VAF = MOI.VectorAffineFunction{Float64}
 const VQT = MOI.VectorQuadraticTerm{Float64}
 const VQF = MOI.VectorQuadraticFunction{Float64}
 
@@ -29,7 +31,5 @@ include("relaxations/hongbo.jl")
 include("relaxations/neural_net.jl")
 include("relaxations/standard_nmdt.jl")
 include("relaxations/tightened_nmdt.jl")
-
-include("box_qp_util.jl")
 
 end # module

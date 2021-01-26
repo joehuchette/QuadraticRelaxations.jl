@@ -20,10 +20,13 @@ function _map_to_interval_if_needed(model, x::VI, y::VI, l::Float64, u::Float64)
     end
 end
 
-vectorize_quadratics!(model::MOIU.CachingOptimizer) = model.model_cache.model
-
-function vectorize_quadratics!(cached_model::MOIU.Model{Float64})
-    scalar_quad_cons = cached_model.moi_scalarquadraticfunction
+# Collects all (scalar) quadratic constraints, normalizes them to form q >= 0,
+# vectorizes them, deletes the original quadratic constraints, and then returns
+# the vector of q's.
+function _collect_and_canonicalize_quadratic_constraints!(
+    model::MOIU.Model{Float64},
+)
+    scalar_quad_cons = model.moi_scalarquadraticfunction
     @assert isempty(scalar_quad_cons.moi_equalto)
     @assert isempty(scalar_quad_cons.moi_interval)
     @assert isempty(scalar_quad_cons.moi_semicontinuous)
@@ -90,16 +93,9 @@ function vectorize_quadratics!(cached_model::MOIU.Model{Float64})
 
     @assert func_count == num_gt + num_lt
 
-    vector_quad_cons = cached_model.moi_vectorquadraticfunction.moi_nonpositives
-    @assert isempty(vector_quad_cons)
-    constraint_index = MOI.ConstraintIndex{VQF,MOI.Nonpositives}(1)
-    vector_func = VQF(affine_terms, quad_terms, constants)
-    vector_set = MOI.Nonpositives(num_gt + num_lt)
-    retval = (constraint_index, vector_func, vector_set)
-    push!(vector_quad_cons, retval)
     empty!(scalar_quad_cons.moi_greaterthan)
     empty!(scalar_quad_cons.moi_lessthan)
-    return retval
+    return VQF(affine_terms, quad_terms, constants)
 end
 
 function _indices_and_coefficients(
