@@ -3,7 +3,9 @@ struct MinEigenvalueShift <: AbstractShiftMethod end
 function compute_diagonal_shift(Q::Matrix{Float64}, ::MinEigenvalueShift)
     @assert LinearAlgebra.issymmetric(Q)
     n = size(Q, 1)
-    return LinearAlgebra.eigmin(Q) .* ones(n)
+    shift = -LinearAlgebra.eigmin(Q) .* ones(n)
+    @assert LinearAlgebra.eigmin(Q + LinearAlgebra.diagm(shift)) >= -1e-4
+    return shift
 end
 
 struct SemidefiniteShift <: AbstractShiftMethod
@@ -19,5 +21,7 @@ function compute_diagonal_shift(Q::Matrix{Float64}, shift::SemidefiniteShift)
     JuMP.@SDconstraint(sdp_model, Q + LinearAlgebra.diagm(δ .- 1e-4) >= 0)
     JuMP.optimize!(sdp_model)
     @assert JuMP.primal_status(sdp_model) == MOI.FEASIBLE_POINT
-    return JuMP.value.(δ)
+    shift = JuMP.value.(δ)
+    @assert LinearAlgebra.eigmin(Q + LinearAlgebra.diagm(shift)) >= -1e-4
+    return shift
 end

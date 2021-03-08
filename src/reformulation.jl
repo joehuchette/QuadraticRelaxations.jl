@@ -27,7 +27,7 @@ function _relax_quadratic!(
     squared_vars = Dict{VI,VI}()
     # Walk all constraints in vector and populate squared_vars dict
     sqt_terms = vcat(
-        [t -> t.scalar_term for t in f.quadratic_terms],
+        vcat([t.scalar_term for t in f.quadratic_terms]...),
         obj.quadratic_terms,
     )
     for st in sqt_terms
@@ -44,8 +44,8 @@ function _relax_quadratic!(
                 if reformulation.soc_lower_bound
                     MOI.add_constraint(
                         model,
-                        MOI.VectorOfVariables([y_v, x]),
-                        MOI.SecondOrderCone(2),
+                        1.0SV(y_v) - 1.0SV(x) * SV(x),
+                        MOI.GreaterThan(0.0),
                     )
                 end
                 reformulate_unary_quadratic_term!(
